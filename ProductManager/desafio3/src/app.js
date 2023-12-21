@@ -1,47 +1,70 @@
 import express from "express";
-import { ProductManager } from "./ProductManager.js";
+import { Server } from "socket.io";
+import productRouter from "./routes/products.router.js";
+import cartRouter from "./routes/cart.router.js";
+import handlebars from "express-handlebars";
+import viewsRouter from "./routes/views.router.js";
+import { __dirname } from "./utils.js";
+import { ProductManager } from "./classes/ProductManager.js";
 
 const app = express();
 const PORT = 8080;
 const productManager = new ProductManager("productos.json");
-let productos = [];
 
-app.get("/", (req, res) => {
-  res.send("hola mundo");
-});
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-app.get("/productos", async (req, res) => {
-  const { limit } = req.query;
-  try {
-    let response = await productManager.getProducts();
-    if (limit) {
-      let tempArray = response.filter((dat, index) => index < limit);
-      /* let tempArray = response.map((dat, index) => {
-        return index < limit && dat;
-      });
-      */
-      res.json({ data: tempArray, limit: limit, quantity: tempArray.length });
-    } else {
-      res.json({ data: response, limit: false, quantity: response.length });
-    }
-  } catch (err) {
-    console.log(err);
-  }
-});
-app.get("/productos/:pid", async (req, res) => {
-  const { pid } = req.params;
+app.use(express.static(__dirname + "/public"));
 
-  let product = await productManager.getProductById(parseInt(pid));
+app.engine("handlebars", handlebars.engine());
+app.set("views", __dirname + "/views");
+app.set("view engine", "handlebars");
 
-  if (product) {
-    res.json({ message: "success", data: product });
-  } else {
-    res.json({
-      message: "el producto solicitado no existe",
-    });
-  }
-});
+app.use("/api/products", productRouter);
+app.use("/api/cart", cartRouter);
+app.use("/", viewsRouter);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log("servidor esta running en el puerto" + PORT);
+});
+
+const socketServer = new Server(server);
+
+socketServer.on("connection", (socket) => {
+  console.log("nuevo cliente conectado");
+  socket.on("addProduct", async (product) => {
+    const title = product.title;
+    const description = product.description;
+    const price = product.price;
+    const thumbnail = product.thumbnail;
+    const code = product.code;
+    const stock = product.stock;
+    try {
+      const result = await productManager.addProduct(
+        title,
+        description,
+        price,
+        thumbnail,
+        code,
+        stock
+      );
+      const allProducts = await productManager.getProducts();
+      console.log(allProducts);
+      result && socketServer.emit("updateProducts", allProducts);
+    } catch (err) {
+      console.log(err);
+    }
+  });
+
+  socket.on("deleteProduct", async (id) => {
+    console.log(id);
+    try {
+      const result = await productManager.deleteProductById(id);
+      const allProducts = await productManager.getProducts();
+      console.log(allProducts);
+      result && socketServer.emit("updateProducts", allProducts);
+    } catch (err) {
+      console.log(err);
+    }
+  });
 });
