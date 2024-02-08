@@ -1,64 +1,64 @@
 import express from "express";
-import handlebars from "express-handlebars";
-import { __dirname } from "./utils.js";
-import dotenv from "dotenv";
-import mongoose from "mongoose";
-import MongoStore from "connect-mongo";
-import session from "express-session";
 import cookieParser from "cookie-parser";
+import { engine } from "express-handlebars";
+import session from "express-session";
+import MongoStore from "connect-mongo";
+import mongoose from "mongoose";
+import * as dotenv from "dotenv";
+
+import viewsRouter from "./routes/views.routes.js";
+import registroRouter from "./routes/registro.routes.js";
 import loginRouter from "./routes/login.routes.js";
-import signupRouter from "./routes/signup.routes.js";
-import sessionRouter from "./routes/session.routes.js";
+import productsRoutes from "./routes/product.routes.js";
+import cartRoutes from "./routes/cart.routes.js";
 
 dotenv.config();
 const app = express();
-const DB_URL = process.env.DB_URL || "mongodb://localhost:27017/test";
-const PORT = process.env.PORT || 8080;
-const COOKIESECRET = process.env.CODERSECRET;
+const PORT = 8080;
+const USER_MONGO = process.env.USER_MONGO;
+const PASSWORD_MONGO = process.env.PASSWORD_MONGO;
+const DB_MONGO = process.env.DB_MONGO;
+const DB_SERVER = process.env.DB_SERVER;
 
-//middlewares
+const DB_URL = `mongodb+srv://${USER_MONGO}:${PASSWORD_MONGO}@${DB_SERVER}/${DB_MONGO}?retryWrites=true&w=majority`;
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser(COOKIESECRET));
 
-app.use(express.static(__dirname + "/public"));
-
-app.engine("handlebars", handlebars.engine());
-app.set("views", __dirname + "/views");
+app.engine("handlebars", engine());
 app.set("view engine", "handlebars");
-
-//rutes
-
-app.use(
-  session({
-    store: MongoStore.create({
-      mongoUrl: DB_URL,
-      mongoOptions: {
-        useNewUrlParser: true,
-      },
-      ttl: 600,
-    }),
-    secret: COOKIESECRET,
-    resave: false,
-    saveUninitialized: true,
-  })
-);
-
-app.use("/", sessionRouter);
-app.use("/login", loginRouter);
-app.use("/signup", signupRouter);
-const environment = async () => {
-  try {
-    await mongoose.connect(DB_URL);
-  } catch (error) {
-    console.log(error);
-  }
-};
-
-environment();
+app.set("views", "./src/views");
+app.use(express.static("public"));
 
 const server = app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
 
-server.on("error", (error) => console.log(error));
+app.use(cookieParser());
+
+app.use(
+  session({
+    store: MongoStore.create({
+      mongoUrl: DB_URL,
+      mongoOptions: { useNewUrlParser: true, useUnifiedTopology: true },
+      ttl: 10000,
+    }),
+    secret: "codigo-s3cr3t0",
+    resave: true,
+    saveUninitialized: true,
+  })
+);
+
+//coneccion a mongoose
+mongoose.set("strictQuery", false);
+mongoose.connect(DB_URL, (err) => {
+  if (err) {
+    console.log("No se puede conectar a la base de datos");
+  } else {
+    console.log("Mongoose conectado con Exito");
+  }
+});
+
+app.use("/", viewsRouter);
+app.use("/api/registro", registroRouter);
+app.use("/api/login", loginRouter);
+app.use("/api/products", productsRoutes);
+app.use("/api/carts", cartRoutes);
