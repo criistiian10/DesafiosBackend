@@ -6,16 +6,20 @@ async function postSignup(first_name, last_name, email, password, age) {
       password,
       age,
     };
-    const response = await fetch("/api/sessions/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
+    try {
+      const response = await fetch("/api/sessions/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
   
-    const result = await response.json();
-    return result;
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      return { success: false, message: "invalid credentials" };
+    }
   }
   
   const signupForm = document.getElementById("signup-form");
@@ -27,10 +31,11 @@ async function postSignup(first_name, last_name, email, password, age) {
     const email = document.getElementById("email").value;
     const password = document.getElementById("password").value;
     const age = document.getElementById("age").value;
-    const result = await postSignup(first_name, last_name, email, password, age);
-    if (result.status === "success") {
-      window.location.href = "/";
+  
+    const response = await postSignup(first_name, last_name, email, password, age);
+    if (response.success == true) {
+      window.location.href = response.redirectUrl;
     } else {
-      alert("Datos incorrectos");
+      alert(response.message);
     }
   });
